@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
+
+# Database
+*.db
+ges_platform.db
+
+# Test cache
+.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+
+# Uploaded files
+uploads/
