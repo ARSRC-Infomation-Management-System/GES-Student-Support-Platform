@@ -1,7 +1,25 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Table
+from enum import Enum
+
+from sqlalchemy import Boolean, Column, DateTime, Enum as SqlEnum, ForeignKey, Integer, String, Text
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from app.db.database import Base
+
+
+class ComplaintStatus(str, Enum):
+    PENDING = "pending"
+    UNDER_REVIEW = "under_review"
+    ESCALATED = "escalated"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+    REJECTED = "rejected"
+
+
+class ComplaintPriority(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
 
 class Region(Base):
     __tablename__ = "regions"
@@ -42,8 +60,8 @@ class User(Base):
     region_id = Column(Integer, ForeignKey("regions.id"), nullable=True)
     school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     region = relationship("Region", back_populates="users")
     school = relationship("School", back_populates="users")
@@ -72,7 +90,16 @@ class Complaint(Base):
     title = Column(String(150), nullable=False)
     description = Column(Text, nullable=False)
     category = Column(String(50), nullable=False)  # 'bullying', 'abuse', 'academic', 'infrastructure', etc.
-    status = Column(String(20), nullable=False, default="pending")  # 'pending', 'investigating', 'resolved', 'rejected'
+    status = Column(
+        SqlEnum(ComplaintStatus, name="complaint_status", native_enum=False, create_constraint=True, validate_strings=True),
+        nullable=False,
+        server_default=ComplaintStatus.PENDING.value,
+    )
+    priority = Column(
+        SqlEnum(ComplaintPriority, name="complaint_priority", native_enum=False, create_constraint=True, validate_strings=True),
+        nullable=False,
+        server_default=ComplaintPriority.MEDIUM.value,
+    )
     
     is_anonymous = Column(Boolean, default=True, nullable=False)
     
@@ -83,8 +110,8 @@ class Complaint(Base):
     school_id = Column(Integer, ForeignKey("schools.id"), nullable=False)
     region_id = Column(Integer, ForeignKey("regions.id"), nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     student = relationship("User", back_populates="complaints")
     school = relationship("School", back_populates="complaints")
@@ -103,7 +130,7 @@ class Attachment(Base):
     file_path = Column(String(255), nullable=False)
     file_size = Column(Integer, nullable=False)
     content_type = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     complaint = relationship("Complaint", back_populates="attachments")
 
@@ -113,7 +140,7 @@ class Conversation(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     complaint_id = Column(Integer, ForeignKey("complaints.id"), nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     complaint = relationship("Complaint", back_populates="conversation")
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
@@ -130,7 +157,7 @@ class Message(Base):
     sender_role = Column(String(20), nullable=False)  # 'student', 'official', 'admin'
     
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", back_populates="messages")
@@ -148,7 +175,7 @@ class Broadcast(Base):
     target_school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)
     
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     target_region = relationship("Region", back_populates="broadcasts")
     target_school = relationship("School", back_populates="broadcasts")
@@ -163,7 +190,7 @@ class Resource(Base):
     description = Column(Text, nullable=True)
     url = Column(String(255), nullable=True)  # Link to the resource
     category = Column(String(50), nullable=False)  # 'academic', 'health', 'safety', 'guideline'
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class Notification(Base):
@@ -173,8 +200,12 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String(150), nullable=False)
     message = Column(Text, nullable=False)
-    is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    notification_type = Column(String(50), nullable=False, server_default="general")
+    reference_id = Column(Integer, nullable=True)
+    link = Column(String(255), nullable=True)
+    is_read = Column(Boolean, nullable=False, server_default="false")
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     user = relationship("User", back_populates="notifications")
 
@@ -185,7 +216,9 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for anonymous/system actions
     action = Column(String(100), nullable=False)  # e.g., "LOGIN_SUCCESS", "COMPLAINT_STATUS_CHANGE", etc.
+    success = Column(Boolean, nullable=False, server_default="true")
     details = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    user_agent = Column(String(512), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     user = relationship("User", back_populates="audit_logs")

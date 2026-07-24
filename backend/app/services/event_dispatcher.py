@@ -48,7 +48,10 @@ def on_complaint_status_changed(db: Session, complaint_id: int, case_id: str, ol
     notification = Notification(
         user_id=student_id,
         title="Complaint Status Updated",
-        message=f"Your complaint (Case ID: {case_id}) status has been updated to '{new_status}'."
+        message=f"Your complaint (Case ID: {case_id}) status has been updated to '{new_status}'.",
+        notification_type="complaint_status_changed",
+        reference_id=complaint_id,
+        link=f"/complaints/track/{case_id}",
     )
     db.add(notification)
     db.commit()
@@ -59,7 +62,9 @@ def on_message_sent(db: Session, case_id: str, sender_role: str, sender_id: int,
         notification = Notification(
             user_id=recipient_student_id,
             title="New Message Received",
-            message=f"A GES representative has sent a message regarding Case ID {case_id}."
+            message=f"A GES representative has sent a message regarding Case ID {case_id}.",
+            notification_type="message_received",
+            link=f"/complaints/track/{case_id}",
         )
         db.add(notification)
         db.commit()

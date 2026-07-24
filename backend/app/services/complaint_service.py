@@ -7,6 +7,7 @@ from fastapi import UploadFile
 
 from app.models.models import User, Complaint, Attachment, Conversation
 from app.schemas.complaints import ComplaintCreate, ComplaintOut
+from app.models.models import ComplaintStatus
 from app.repositories.complaint_repository import ComplaintRepository
 from app.services.storage_service import StorageService
 from app.services.event_dispatcher import event_dispatcher
@@ -38,7 +39,7 @@ class ComplaintService:
             student_id=current_user.id,  # ALWAYS link in DB
             school_id=complaint_in.school_id,
             region_id=complaint_in.region_id,
-            status="pending"
+            status=ComplaintStatus.PENDING
         )
         
         try:
@@ -108,7 +109,7 @@ class ComplaintService:
             
         return [ComplaintMapper.to_out(c, current_user) for c in complaints]
 
-    def update_complaint_status(self, db: Session, case_id: str, status: str, current_user: User) -> ComplaintOut:
+    def update_complaint_status(self, db: Session, case_id: str, status: ComplaintStatus, current_user: User) -> ComplaintOut:
         complaint = self.complaint_repo.get_by_case_id(db, case_id)
         if not complaint:
             raise ComplaintNotFoundException()
@@ -120,7 +121,7 @@ class ComplaintService:
         if current_user.role not in ["official", "admin"]:
             raise ScopeMismatchException("Only representatives can update status.")
             
-        old_status = complaint.status
+        old_status = complaint.status.value
         try:
             complaint = self.complaint_repo.update(db, complaint, {"status": status})
             db.commit()
@@ -132,7 +133,7 @@ class ComplaintService:
                 complaint_id=complaint.id,
                 case_id=complaint.case_id,
                 old_status=old_status,
-                new_status=status,
+                new_status=status.value,
                 officer_id=current_user.id,
                 student_id=complaint.student_id
             )

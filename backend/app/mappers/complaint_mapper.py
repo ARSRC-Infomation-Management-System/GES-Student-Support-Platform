@@ -21,6 +21,7 @@ class ComplaintMapper:
             description=complaint.description,
             category=complaint.category,
             status=complaint.status,
+            priority=complaint.priority,
             is_anonymous=complaint.is_anonymous,
             school_id=complaint.school_id,
             region_id=complaint.region_id,

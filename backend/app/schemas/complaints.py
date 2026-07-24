@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from app.schemas.auth import UserOut
+from app.models.models import ComplaintPriority, ComplaintStatus
 
 class RegionBase(BaseModel):
     name: str
@@ -44,7 +45,10 @@ class ComplaintCreate(BaseModel):
     region_id: int
 
 class ComplaintUpdateStatus(BaseModel):
-    status: str  # 'pending', 'investigating', 'resolved', 'rejected'
+    status: ComplaintStatus
+
+class ComplaintUpdatePriority(BaseModel):
+    priority: ComplaintPriority
 
 class ComplaintOut(BaseModel):
     id: int
@@ -52,7 +56,8 @@ class ComplaintOut(BaseModel):
     title: str
     description: str
     category: str
-    status: str
+    status: ComplaintStatus
+    priority: ComplaintPriority
     is_anonymous: bool
     school_id: int
     region_id: int

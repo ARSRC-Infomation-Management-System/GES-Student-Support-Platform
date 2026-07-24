@@ -1,4 +1,5 @@
 from typing import List
+from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from app.models.models import User, Resource, Notification, AuditLog
 from app.schemas.resources import ResourceCreate
@@ -65,7 +66,7 @@ class ResourceService:
             raise PermissionDeniedException("Notification not found or access denied.")
             
         try:
-            notification = self.resource_repo.update(db, notification, {"is_read": True})
+            notification = self.resource_repo.update(db, notification, {"is_read": True, "read_at": func.now()})
             db.commit()
             db.refresh(notification)
             return notification

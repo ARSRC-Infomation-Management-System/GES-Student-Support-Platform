@@ -19,7 +19,11 @@ class NotificationOut(BaseModel):
     user_id: int
     title: str
     message: str
+    notification_type: str
+    reference_id: Optional[int] = None
+    link: Optional[str] = None
     is_read: bool
+    read_at: Optional[datetime] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -28,7 +32,9 @@ class AuditLogOut(BaseModel):
     id: int
     user_id: Optional[int] = None
     action: str
+    success: bool
     details: Optional[str] = None
+    user_agent: Optional[str] = None
     timestamp: datetime
     class Config:
         from_attributes = True
