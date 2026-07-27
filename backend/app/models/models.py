@@ -1,6 +1,6 @@
 from enum import Enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum as SqlEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Enum as SqlEnum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -21,6 +21,31 @@ class ComplaintPriority(str, Enum):
     HIGH = "high"
     URGENT = "urgent"
 
+
+class EventStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+
+class DomainEventType(str, Enum):
+    EVENT_PUBLISHED = "event_published"
+    EVENT_CANCELLED = "event_cancelled"
+    BROADCAST_SENT = "broadcast_sent"
+    COMPLAINT_CREATED = "complaint_created"
+    COMPLAINT_STATUS_CHANGED = "complaint_status_changed"
+    MESSAGE_SENT = "message_sent"
+
+
+class AuditAction:
+    EVENT_CREATED = "EVENT_CREATED"
+    EVENT_UPDATED = "EVENT_UPDATED"
+    EVENT_PUBLISHED = "EVENT_PUBLISHED"
+    EVENT_CANCELLED = "EVENT_CANCELLED"
+    EVENT_ARCHIVED = "EVENT_ARCHIVED"
+
+
 class Region(Base):
     __tablename__ = "regions"
     
@@ -31,6 +56,7 @@ class Region(Base):
     users = relationship("User", back_populates="region")
     complaints = relationship("Complaint", back_populates="region")
     broadcasts = relationship("Broadcast", back_populates="target_region")
+    events = relationship("Event", back_populates="target_region")
 
 
 class School(Base):
@@ -44,6 +70,7 @@ class School(Base):
     users = relationship("User", back_populates="school")
     complaints = relationship("Complaint", back_populates="school")
     broadcasts = relationship("Broadcast", back_populates="target_school")
+    events = relationship("Event", back_populates="target_school")
 
 
 class User(Base):
@@ -80,6 +107,9 @@ class User(Base):
     
     # Audit logs triggered
     audit_logs = relationship("AuditLog", back_populates="user")
+    
+    # Events created
+    created_events = relationship("Event", back_populates="creator")
 
 
 class Complaint(Base):
@@ -93,11 +123,13 @@ class Complaint(Base):
     status = Column(
         SqlEnum(ComplaintStatus, name="complaint_status", native_enum=False, create_constraint=True, validate_strings=True),
         nullable=False,
+        default=ComplaintStatus.PENDING,
         server_default=ComplaintStatus.PENDING.value,
     )
     priority = Column(
         SqlEnum(ComplaintPriority, name="complaint_priority", native_enum=False, create_constraint=True, validate_strings=True),
         nullable=False,
+        default=ComplaintPriority.MEDIUM,
         server_default=ComplaintPriority.MEDIUM.value,
     )
     
@@ -222,3 +254,35 @@ class AuditLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     user = relationship("User", back_populates="audit_logs")
+
+
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    location = Column(String(255), nullable=True)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    status = Column(
+        SqlEnum(EventStatus, name="event_status", native_enum=False, create_constraint=True, validate_strings=True),
+        nullable=False,
+        default=EventStatus.DRAFT,
+        server_default=EventStatus.DRAFT.value,
+    )
+    target_region_id = Column(Integer, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True)
+    target_school_id = Column(Integer, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    target_region = relationship("Region", back_populates="events")
+    target_school = relationship("School", back_populates="events")
+    creator = relationship("User", back_populates="created_events")
+
+    __table_args__ = (
+        Index("idx_events_school", "target_school_id", "start_time"),
+        Index("idx_events_region", "target_region_id", "start_time"),
+        Index("idx_events_status_end", "status", "end_time"),
+    )

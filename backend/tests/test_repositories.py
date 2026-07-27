@@ -30,6 +30,7 @@ def test_complaint_repository(db):
     school = db.query(School).first()
     
     complaint_repo = ComplaintRepository()
+    from app.models.models import ComplaintStatus, ComplaintPriority
     complaint = Complaint(
         case_id="GES-2026-TEST12",
         title="Test Complaint",
@@ -39,7 +40,8 @@ def test_complaint_repository(db):
         student_id=student.id,
         school_id=school.id,
         region_id=school.region_id,
-        status="pending"
+        status=ComplaintStatus.PENDING,
+        priority=ComplaintPriority.MEDIUM
     )
     db.add(complaint)
     db.commit()

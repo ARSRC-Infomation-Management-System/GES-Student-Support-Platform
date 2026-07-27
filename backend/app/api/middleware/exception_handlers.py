@@ -3,6 +3,11 @@ from fastapi.responses import JSONResponse
 from app.exceptions.auth import AuthenticationException, PermissionDeniedException
 from app.exceptions.complaint import ComplaintNotFoundException, ScopeMismatchException
 from app.exceptions.storage import StorageException
+from app.exceptions.event import (
+    EventNotFoundException,
+    EventValidationException,
+    EventInvalidStateTransitionException,
+)
 
 def register_exception_handlers(app: FastAPI):
     @app.exception_handler(AuthenticationException)
@@ -69,3 +74,43 @@ def register_exception_handlers(app: FastAPI):
                 }
             }
         )
+
+    @app.exception_handler(EventNotFoundException)
+    async def event_not_found_exception_handler(request: Request, exc: EventNotFoundException):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EVENT_NOT_FOUND",
+                    "message": str(exc)
+                }
+            }
+        )
+
+    @app.exception_handler(EventValidationException)
+    async def event_validation_exception_handler(request: Request, exc: EventValidationException):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EVENT_VALIDATION_ERROR",
+                    "message": str(exc)
+                }
+            }
+        )
+
+    @app.exception_handler(EventInvalidStateTransitionException)
+    async def event_state_transition_exception_handler(request: Request, exc: EventInvalidStateTransitionException):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": {
+                    "code": "INVALID_STATE_TRANSITION",
+                    "message": str(exc)
+                }
+            }
+        )
+
