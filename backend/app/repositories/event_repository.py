@@ -44,6 +44,12 @@ class EventRepository(BaseRepository[Event]):
     ) -> Tuple[List[Event], int]:
         query = db.query(Event)
 
+        print(
+    f"target_school_id={target_school_id}, "
+    f"target_region_id={target_region_id}, "
+    f"include_global={include_global}"
+)
+
         if status:
             query = query.filter(Event.status == status)
 
@@ -53,7 +59,10 @@ class EventRepository(BaseRepository[Event]):
             scope_conditions.append(Event.target_school_id == target_school_id)
         if target_region_id is not None:
             scope_conditions.append(Event.target_region_id == target_region_id)
-        if include_global:
+        # Only include global events when we're filtering by a region or school
+        if include_global and (
+            target_school_id is not None or target_region_id is not None
+        ):
             scope_conditions.append(
                 and_(Event.target_region_id.is_(None), Event.target_school_id.is_(None))
             )
@@ -64,7 +73,7 @@ class EventRepository(BaseRepository[Event]):
         query = self._apply_search_filter(query, search)
 
         total = query.count()
-        items = query.order_by(Event.start_time.asc()).offset(offset).limit(limit).all()
+        items = (query.order_by(Event.start_time.asc()).offset(offset).limit(limit).all())
         return items, total
 
     def list_upcoming(

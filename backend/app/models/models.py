@@ -266,7 +266,7 @@ class Event(Base):
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
     status = Column(
-        SqlEnum(EventStatus, name="event_status", native_enum=False, create_constraint=True, validate_strings=True),
+        SqlEnum(EventStatus, values_callable=lambda enum: [e.value for e in enum], name="event_status", native_enum=False, create_constraint=True, validate_strings=True),
         nullable=False,
         default=EventStatus.DRAFT,
         server_default=EventStatus.DRAFT.value,
