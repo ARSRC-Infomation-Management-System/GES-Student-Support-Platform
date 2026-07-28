@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GES Events Portal | Student Support & Communication Platform</title>
+    <meta name="description" content="Discover, schedule, and manage events across Ghana Education Service schools and regions.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>GES Support</h2>
+                    <span>Events Platform v2.0</span>
+                </div>
+            </div>
+
+            <div class="user-role-card" id="userRoleCard">
+                <div class="avatar" id="userAvatar">SA</div>
+                <div class="user-info">
+                    <h4 id="userName">System Administrator</h4>
+                    <span class="role-badge admin" id="userRoleBadge">Super Admin</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="menu-label">Portal Views</div>
+                <button class="nav-btn active" id="navStudentBtn" onclick="switchView('student')">
+                    <i class="fa-solid fa-calendar-day"></i> Student Events Feed
+                </button>
+                <button class="nav-btn" id="navAdminBtn" onclick="switchView('admin')">
+                    <i class="fa-solid fa-sliders"></i> Admin Events Dashboard
+                </button>
+
+                <div class="menu-label">Account Switcher (Demo)</div>
+                <div class="role-switcher">
+                    <button class="role-chip active" onclick="setUserRole('admin')">Super Admin</button>
+                    <button class="role-chip" onclick="setUserRole('official_school')">School Admin</button>
+                    <button class="role-chip" onclick="setUserRole('official_region')">Regional Officer</button>
+                    <button class="role-chip" onclick="setUserRole('student')">Student View</button>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p><i class="fa-solid fa-shield-halved"></i> Ghana Education Service</p>
+                <small>Secure Architecture v2.0</small>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="viewTitle">Upcoming Events & Activities</h1>
+                    <p id="viewSubtitle">Explore school fairs, academic bootcamps, and regional seminars</p>
+                </div>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="searchInput" placeholder="Search events by title, venue..." onkeyup="handleSearch(event)">
+                    </div>
+                    <button class="btn btn-primary" id="btnCreateEvent" onclick="openCreateModal()" style="display: none;">
+                        <i class="fa-solid fa-plus"></i> Create Event
+                    </button>
+                </div>
+            </header>
+
+            <!-- Student View Container -->
+            <section id="studentView" class="view-section active">
+                <div class="filter-tabs">
+                    <button class="tab-btn active" onclick="filterStudentEvents('upcoming', event)">
+                        <i class="fa-solid fa-clock"></i> Upcoming Events
+                    </button>
+                    <button class="tab-btn" onclick="filterStudentEvents('history', event)">
+                        <i class="fa-solid fa-history"></i> Event History
+                    </button>
+                    <button class="tab-btn" onclick="filterStudentEvents('all', event)">
+                        <i class="fa-solid fa-globe"></i> All Relevant Events
+                    </button>
+                </div>
+
+                <div class="scope-info-banner" id="scopeInfoBanner">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Showing events tailored to <strong>Achimota School</strong> & <strong>Greater Accra Region</strong>.</span>
+                </div>
+
+                <div class="events-grid" id="eventsGrid">
+                    <!-- Dynamic Event Cards populate here -->
+                </div>
+            </section>
+
+            <!-- Admin Dashboard Container -->
+            <section id="adminView" class="view-section">
+                <div class="stats-row">
+                    <div class="stat-card blue">
+                        <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                        <div class="stat-data">
+                            <h3 id="statTotal">0</h3>
+                            <span>Total Events</span>
+                        </div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-icon"><i class="fa-solid fa-paper-plane"></i></div>
+                        <div class="stat-data">
+                            <h3 id="statPublished">0</h3>
+                            <span>Published</span>
+                        </div>
+                    </div>
+                    <div class="stat-card yellow">
+                        <div class="stat-icon"><i class="fa-solid fa-pen-ruler"></i></div>
+                        <div class="stat-data">
+                            <h3 id="statDrafts">0</h3>
+                            <span>Drafts</span>
+                        </div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-icon"><i class="fa-solid fa-box-archive"></i></div>
+                        <div class="stat-data">
+                            <h3 id="statArchived">0</h3>
+                            <span>Cancelled / Archived</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container glass-panel">
+                    <div class="table-header">
+                        <h3><i class="fa-solid fa-list-check"></i> Event Management Registry</h3>
+                        <div class="table-filters">
+                            <select id="statusFilter" onchange="loadAdminEvents()">
+                                <option value="">All Statuses</option>
+                                <option value="draft">Drafts</option>
+                                <option value="published">Published</option>
+                                <option value="cancelled">Cancelled</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Event Title</th>
+                                <th>Schedule</th>
+                                <th>Target Scope</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTableBody">
+                            <!-- Table rows populate dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Create / Edit Event Modal -->
+    <div class="modal-overlay" id="eventModal">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3 id="modalTitle"><i class="fa-solid fa-calendar-plus"></i> Create New Event</h3>
+                <button class="modal-close" onclick="closeModal('eventModal')">&times;</button>
+            </div>
+            <form id="eventForm" onsubmit="handleSaveEvent(event)">
+                <input type="hidden" id="eventId">
+                <div class="form-group">
+                    <label for="eventTitle">Event Title *</label>
+                    <input type="text" id="eventTitle" required placeholder="e.g. STEM Career & Innovation Fair">
+                </div>
+
+                <div class="form-group">
+                    <label for="eventDescription">Description *</label>
+                    <textarea id="eventDescription" rows="3" required placeholder="Describe the purpose, agenda, and guest speakers..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="eventLocation">Location / Venue</label>
+                        <input type="text" id="eventLocation" placeholder="e.g. Assembly Hall or Zoom Meeting Link">
+                    </div>
+                    <div class="form-group">
+                        <label for="eventStatus">Initial Status</label>
+                        <select id="eventStatus">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startTime">Start Date & Time *</label>
+                        <input type="datetime-local" id="startTime" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="endTime">End Date & Time *</label>
+                        <input type="datetime-local" id="endTime" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Target Audience Scope *</label>
+                    <div class="scope-options">
+                        <label class="radio-label">
+                            <input type="radio" name="scopeType" value="global" checked onclick="handleScopeRadioChange()">
+                            <span><i class="fa-solid fa-globe"></i> Global (All Students)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="scopeType" value="region" onclick="handleScopeRadioChange()">
+                            <span><i class="fa-solid fa-map-location-dot"></i> Region Scope</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="scopeType" value="school" onclick="handleScopeRadioChange()">
+                            <span><i class="fa-solid fa-school"></i> School Scope</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-row" id="scopeDropdownRow" style="display: none;">
+                    <div class="form-group" id="regionSelectGroup" style="display: none;">
+                        <label for="regionSelect">Select Target Region</label>
+                        <select id="regionSelect">
+                            <option value="1">Greater Accra Region</option>
+                            <option value="2">Ashanti Region</option>
+                            <option value="3">Central Region</option>
+                            <option value="4">Volta Region</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="schoolSelectGroup" style="display: none;">
+                        <label for="schoolSelect">Select Target School</label>
+                        <select id="schoolSelect">
+                            <option value="1">Achimota School</option>
+                            <option value="2">Accra Academy</option>
+                            <option value="3">Prempeh College</option>
+                            <option value="4">Wesley Girls High School</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('eventModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitForm">Save Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event Detail Modal (Student & View Mode) -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3 id="detailTitle">Event Details</h3>
+                <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="detailBody">
+                <!-- Content populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('detailModal')">Close</button>
+                <button class="btn btn-primary" onclick="handleRsvp()"><i class="fa-solid fa-calendar-plus"></i> Add to Calendar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
