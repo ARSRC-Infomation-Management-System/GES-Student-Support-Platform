@@ -10,7 +10,7 @@ class DomainEventDispatcher:
         self._listeners: Dict[str, List[Callable]] = {}
 
     def _get_key(self, event_type: Union[DomainEventType, str]) -> str:
-        return event_type.value if isinstance(event_type, DomainEventType) else str(event_type)
+        return event_type.value if isinstance(event_type, DomainEventType) else event_type
 
     def register(self, event_type: Union[DomainEventType, str], listener: Callable):
         key = self._get_key(event_type)

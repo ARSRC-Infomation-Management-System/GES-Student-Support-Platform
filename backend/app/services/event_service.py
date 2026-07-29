@@ -29,24 +29,28 @@ class EventService:
     def _validate_author_permissions_and_scope(
         self, current_user: User, target_region_id: Optional[int], target_school_id: Optional[int]
     ) -> tuple[Optional[int], Optional[int]]:
-        if current_user.role not in ["official", "admin"]:
+        user_role = getattr(current_user, "role")
+        user_school_id = getattr(current_user, "school_id")
+        user_region_id = getattr(current_user, "region_id")
+
+        if user_role not in ["official", "admin"]:
             raise PermissionDeniedException("Only school/regional officials or admins can create/modify events.")
 
-        if current_user.role == "official":
-            if current_user.school_id:
+        if user_role == "official":
+            if user_school_id:
                 # School Admin scope
-                if target_school_id is not None and target_school_id != current_user.school_id:
+                if target_school_id is not None and target_school_id != user_school_id:
                     raise ScopeMismatchException("School officials can only manage events for their assigned school.")
                 if target_region_id is not None:
                     raise ScopeMismatchException("School officials cannot assign regional scope.")
-                return None, current_user.school_id
-            elif current_user.region_id:
+                return None, user_school_id
+            elif user_region_id:
                 # Regional Officer scope
-                if target_region_id is not None and target_region_id != current_user.region_id:
+                if target_region_id is not None and target_region_id != user_region_id:
                     raise ScopeMismatchException("Regional officers can only manage events for their assigned region.")
                 if target_school_id is not None:
                     raise ScopeMismatchException("Regional officers cannot assign school scope.")
-                return current_user.region_id, None
+                return user_region_id, None
             else:
                 raise PermissionDeniedException("Official account has no regional or school scope assigned.")
 
@@ -63,6 +67,7 @@ class EventService:
             )
 
     def create_event(self, db: Session, event_in: EventCreate, current_user: User) -> EventResponse:
+        user_id = getattr(current_user, "id")
         resolved_region_id, resolved_school_id = self._validate_author_permissions_and_scope(
             current_user, event_in.target_region_id, event_in.target_school_id
         )
@@ -76,7 +81,7 @@ class EventService:
             status=event_in.status or EventStatus.DRAFT,
             target_region_id=resolved_region_id,
             target_school_id=resolved_school_id,
-            created_by=current_user.id,
+            created_by=user_id,
         )
 
         try:
@@ -84,23 +89,29 @@ class EventService:
             db.commit()
             db.refresh(event)
 
+            evt_id = getattr(event, "id")
+            evt_title = getattr(event, "title")
+            evt_status = getattr(event, "status")
+            evt_reg_id = getattr(event, "target_region_id")
+            evt_sch_id = getattr(event, "target_school_id")
+
             AuditHandler.handle_event_audit(
                 db,
                 action=AuditAction.EVENT_CREATED,
-                user_id=current_user.id,
-                details=f"Event created (ID: {event.id}, Title: '{event.title}')",
+                user_id=user_id,
+                details=f"Event created (ID: {evt_id}, Title: '{evt_title}')",
             )
 
             # If created directly in PUBLISHED status, trigger notifications
-            if event.status == EventStatus.PUBLISHED:
+            if evt_status == EventStatus.PUBLISHED:
                 domain_event_dispatcher.dispatch(
                     DomainEventType.EVENT_PUBLISHED,
                     db,
-                    event_id=event.id,
-                    title=event.title,
-                    author_id=current_user.id,
-                    target_region_id=event.target_region_id,
-                    target_school_id=event.target_school_id,
+                    event_id=evt_id,
+                    title=evt_title,
+                    author_id=user_id,
+                    target_region_id=evt_reg_id,
+                    target_school_id=evt_sch_id,
                 )
 
             return EventMapper.to_response(event)
@@ -113,11 +124,14 @@ class EventService:
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        # Check scope ownership/permission
+        user_id = getattr(current_user, "id")
+        evt_reg_id = getattr(event, "target_region_id")
+        evt_sch_id = getattr(event, "target_school_id")
+
         self._validate_author_permissions_and_scope(
             current_user,
-            event_in.target_region_id if event_in.target_region_id is not None else event.target_region_id,
-            event_in.target_school_id if event_in.target_school_id is not None else event.target_school_id,
+            event_in.target_region_id if event_in.target_region_id is not None else evt_reg_id,
+            event_in.target_school_id if event_in.target_school_id is not None else evt_sch_id,
         )
 
         update_data = event_in.model_dump(exclude_unset=True)
@@ -126,11 +140,12 @@ class EventService:
             db.commit()
             db.refresh(updated_event)
 
+            updated_id = getattr(updated_event, "id")
             AuditHandler.handle_event_audit(
                 db,
                 action=AuditAction.EVENT_UPDATED,
-                user_id=current_user.id,
-                details=f"Event ID {updated_event.id} updated by user {current_user.id}",
+                user_id=user_id,
+                details=f"Event ID {updated_id} updated by user {user_id}",
             )
             return EventMapper.to_response(updated_event)
         except Exception as e:
@@ -142,24 +157,28 @@ class EventService:
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        self._validate_author_permissions_and_scope(
-            current_user, event.target_region_id, event.target_school_id
-        )
-        self._validate_status_transition(event.status, EventStatus.PUBLISHED)
+        user_id = getattr(current_user, "id")
+        evt_reg_id = getattr(event, "target_region_id")
+        evt_sch_id = getattr(event, "target_school_id")
+        evt_status = getattr(event, "status")
 
-        event.status = EventStatus.PUBLISHED
+        self._validate_author_permissions_and_scope(current_user, evt_reg_id, evt_sch_id)
+        self._validate_status_transition(evt_status, EventStatus.PUBLISHED)
+
+        setattr(event, "status", EventStatus.PUBLISHED)
         db.add(event)
         db.commit()
         db.refresh(event)
 
+        evt_title = getattr(event, "title")
         domain_event_dispatcher.dispatch(
             DomainEventType.EVENT_PUBLISHED,
             db,
-            event_id=event.id,
-            title=event.title,
-            author_id=current_user.id,
-            target_region_id=event.target_region_id,
-            target_school_id=event.target_school_id,
+            event_id=event_id,
+            title=evt_title,
+            author_id=user_id,
+            target_region_id=evt_reg_id,
+            target_school_id=evt_sch_id,
         )
 
         return EventMapper.to_response(event)
@@ -169,12 +188,15 @@ class EventService:
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        self._validate_author_permissions_and_scope(
-            current_user, event.target_region_id, event.target_school_id
-        )
-        self._validate_status_transition(event.status, EventStatus.CANCELLED)
+        user_id = getattr(current_user, "id")
+        evt_reg_id = getattr(event, "target_region_id")
+        evt_sch_id = getattr(event, "target_school_id")
+        evt_status = getattr(event, "status")
 
-        event.status = EventStatus.CANCELLED
+        self._validate_author_permissions_and_scope(current_user, evt_reg_id, evt_sch_id)
+        self._validate_status_transition(evt_status, EventStatus.CANCELLED)
+
+        setattr(event, "status", EventStatus.CANCELLED)
         db.add(event)
         db.commit()
         db.refresh(event)
@@ -182,8 +204,8 @@ class EventService:
         AuditHandler.handle_event_audit(
             db,
             action=AuditAction.EVENT_CANCELLED,
-            user_id=current_user.id,
-            details=f"Event ID {event.id} cancelled.",
+            user_id=user_id,
+            details=f"Event ID {event_id} cancelled.",
         )
 
         return EventMapper.to_response(event)
@@ -193,9 +215,11 @@ class EventService:
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        self._validate_author_permissions_and_scope(
-            current_user, event.target_region_id, event.target_school_id
-        )
+        user_id = getattr(current_user, "id")
+        evt_reg_id = getattr(event, "target_region_id")
+        evt_sch_id = getattr(event, "target_school_id")
+
+        self._validate_author_permissions_and_scope(current_user, evt_reg_id, evt_sch_id)
 
         event = self.event_repo.soft_delete(db, event)
         db.commit()
@@ -203,8 +227,8 @@ class EventService:
         AuditHandler.handle_event_audit(
             db,
             action=AuditAction.EVENT_ARCHIVED,
-            user_id=current_user.id,
-            details=f"Event ID {event.id} archived (soft deleted).",
+            user_id=user_id,
+            details=f"Event ID {event_id} archived (soft deleted).",
         )
 
         return EventMapper.to_response(event)
@@ -214,7 +238,9 @@ class EventService:
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        if current_user.role == "student" and event.status != EventStatus.PUBLISHED:
+        user_role = getattr(current_user, "role")
+        evt_status = getattr(event, "status")
+        if user_role == "student" and evt_status != EventStatus.PUBLISHED:
             raise PermissionDeniedException("Students cannot view unpublished draft or cancelled events.")
 
         return EventMapper.to_response(event)
@@ -228,21 +254,25 @@ class EventService:
         limit: int = 10,
         offset: int = 0,
     ) -> EventListResponse:
-        if current_user.role == "student":
+        user_role = getattr(current_user, "role")
+        user_reg_id = getattr(current_user, "region_id")
+        user_sch_id = getattr(current_user, "school_id")
+
+        if user_role == "student":
             items, total = self.event_repo.list_upcoming(
                 db,
-                region_id=current_user.region_id,
-                school_id=current_user.school_id,
+                region_id=user_reg_id,
+                school_id=user_sch_id,
                 search=search,
                 limit=limit,
                 offset=offset,
             )
-        elif current_user.role == "official":
+        elif user_role == "official":
             items, total = self.event_repo.list_events(
                 db,
                 status=status,
-                target_region_id=current_user.region_id,
-                target_school_id=current_user.school_id,
+                target_region_id=user_reg_id,
+                target_school_id=user_sch_id,
                 include_global=True,
                 search=search,
                 limit=limit,
@@ -275,10 +305,13 @@ class EventService:
         limit: int = 10,
         offset: int = 0,
     ) -> EventListResponse:
+        user_reg_id = getattr(current_user, "region_id")
+        user_sch_id = getattr(current_user, "school_id")
+
         items, total = self.event_repo.list_upcoming(
             db,
-            region_id=current_user.region_id,
-            school_id=current_user.school_id,
+            region_id=user_reg_id,
+            school_id=user_sch_id,
             search=search,
             limit=limit,
             offset=offset,
@@ -301,10 +334,13 @@ class EventService:
         limit: int = 10,
         offset: int = 0,
     ) -> EventListResponse:
+        user_reg_id = getattr(current_user, "region_id")
+        user_sch_id = getattr(current_user, "school_id")
+
         items, total = self.event_repo.list_history(
             db,
-            region_id=current_user.region_id,
-            school_id=current_user.school_id,
+            region_id=user_reg_id,
+            school_id=user_sch_id,
             search=search,
             limit=limit,
             offset=offset,

@@ -14,7 +14,7 @@ class EventRepository(BaseRepository[Event]):
         return self.get(db, event_id)
 
     def soft_delete(self, db: Session, event: Event) -> Event:
-        event.status = EventStatus.CANCELLED
+        setattr(event, "status", EventStatus.CANCELLED)
         db.add(event)
         db.flush()
         return event

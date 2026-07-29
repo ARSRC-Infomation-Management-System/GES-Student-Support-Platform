@@ -27,7 +27,9 @@ def test_user_repository(db):
 def test_complaint_repository(db):
     user_repo = UserRepository()
     student = user_repo.get_by_email(db, "student@ges.gov.gh")
+    assert student is not None
     school = db.query(School).first()
+    assert school is not None
     
     complaint_repo = ComplaintRepository()
     from app.models.models import ComplaintStatus, ComplaintPriority
