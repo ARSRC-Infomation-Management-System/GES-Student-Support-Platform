@@ -135,7 +135,7 @@ def test_scope_mutual_exclusion_validation(client, event_setup_users):
     
     # Prohibit region + school targeting together
     response = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=headers,
         json={
             "title": "Invalid Scope Event",
@@ -156,7 +156,7 @@ def test_start_end_time_validation(client, event_setup_users):
 
     # End time before start time
     response = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=headers,
         json={
             "title": "Invalid Times Event",
@@ -174,7 +174,7 @@ def test_school_admin_scope_enforcement(client, event_setup_users):
 
     # School admin trying to set regional scope should fail
     resp = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=school_headers,
         json={
             "title": "Unauthorized Region Event",
@@ -188,7 +188,7 @@ def test_school_admin_scope_enforcement(client, event_setup_users):
 
     # School admin creating event for their assigned school succeeds
     valid_resp = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=school_headers,
         json={
             "title": "Achimota Inter-House Sports",
@@ -211,7 +211,7 @@ def test_student_permissions(client, event_setup_users):
 
     # Student cannot create events
     resp = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=student_headers,
         json={
             "title": "Student Organized Fair",
@@ -229,7 +229,7 @@ def test_lifecycle_state_transitions(client, event_setup_users):
 
     # 1. Create Draft
     create_resp = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=admin_headers,
         json={
             "title": "STEM Bootcamp 2026",
@@ -267,7 +267,7 @@ def test_visibility_and_scope_isolation(client, db, event_setup_users):
     # Create & Publish 3 Events: Global, Region (Greater Accra), School (Achimota)
     # Global
     g_evt = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=admin_headers,
         json={
             "title": "National Orientation Day",
@@ -280,7 +280,7 @@ def test_visibility_and_scope_isolation(client, db, event_setup_users):
 
     # Regional (Accra)
     r_evt = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=admin_headers,
         json={
             "title": "Accra Region Debate",
@@ -294,7 +294,7 @@ def test_visibility_and_scope_isolation(client, db, event_setup_users):
 
     # School (Achimota)
     s_evt = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=admin_headers,
         json={
             "title": "Achimota Speech Day",
@@ -329,7 +329,7 @@ def test_soft_delete_archive_and_notifications(client, db, event_setup_users):
 
     # Create draft event for Achimota School
     create_resp = client.post(
-        "/api/v1/events",
+        "/api/v1/events/json",
         headers=admin_headers,
         json={
             "title": "Career Fair Achimota",
