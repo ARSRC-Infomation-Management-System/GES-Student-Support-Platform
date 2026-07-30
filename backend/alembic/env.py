@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool, text
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -23,33 +23,17 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+    """Run migrations in 'offline' mode."""
     url = settings.DATABASE_URL
-    if url.startswith("postgres://"):
+    if url and url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -57,15 +41,10 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
+    """Run migrations in 'online' mode."""
     configuration = config.get_section(config.config_ini_section, {})
     db_url = settings.DATABASE_URL
-    if db_url.startswith("postgres://"):
+    if db_url and db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     configuration["sqlalchemy.url"] = db_url
     connectable = engine_from_config(
@@ -75,13 +54,9 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        if connection.dialect.name == "sqlite":
-            connection.execute(text("PRAGMA foreign_keys=OFF"))
-
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,
         )
 
         with context.begin_transaction():

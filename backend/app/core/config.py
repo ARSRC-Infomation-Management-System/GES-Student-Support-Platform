@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(
-        default="sqlite:///./ges_platform.db",
+        default="postgresql://postgres:postgres@localhost:5432/ges_student_support",
         validation_alias="DATABASE_URL",
     )
 

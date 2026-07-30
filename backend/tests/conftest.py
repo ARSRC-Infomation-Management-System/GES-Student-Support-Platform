@@ -1,26 +1,31 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.database import Base, get_db
 from main import app
 from app.models.models import Region, School, User
 from app.core.security import get_password_hash
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+db_url = settings.DATABASE_URL
+if db_url and db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+engine = create_engine(db_url, pool_pre_ping=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def reset_pg_schema():
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+        conn.commit()
 
 
 @pytest.fixture(scope="function")
 def db():
+    reset_pg_schema()
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
@@ -71,7 +76,7 @@ def db():
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        reset_pg_schema()
 
 
 @pytest.fixture(scope="function")
