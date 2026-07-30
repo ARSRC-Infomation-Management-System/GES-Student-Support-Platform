@@ -4,8 +4,8 @@ from app.models.models import User, Region, School, Event, EventStatus, Notifica
 from app.core.security import get_password_hash
 
 
-def get_auth_headers(client, email, password="Password123!"):
-    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+def get_auth_headers(client, identifier, password="Password123!"):
+    response = client.post("/api/v1/auth/login", json={"identifier": identifier, "password": password})
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}

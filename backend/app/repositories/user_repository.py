@@ -10,6 +10,9 @@ class UserRepository(BaseRepository[User]):
     def get_by_email(self, db: Session, email: str) -> Optional[User]:
         return db.query(User).filter(User.email == email).first()
 
+    def get_by_student_id(self, db: Session, student_id: str) -> Optional[User]:
+        return db.query(User).filter(User.student_id == student_id).first()
+
     def get_regions(self, db: Session) -> List[Region]:
         return db.query(Region).order_by(Region.name).all()
 

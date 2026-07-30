@@ -49,10 +49,18 @@ class UserService:
             db.rollback()
             raise AuthenticationException(f"Registration failed: {str(e)}")
 
+    def _is_email(self, identifier: str) -> bool:
+        return "@" in identifier
+
     def authenticate_user(self, db: Session, login_in: UserLogin) -> User:
-        user = self.user_repo.get_by_email(db, login_in.email)
+        identifier = login_in.identifier.strip()
+        if self._is_email(identifier):
+            user = self.user_repo.get_by_email(db, identifier.lower())
+        else:
+            user = self.user_repo.get_by_student_id(db, identifier.upper())
+
         if not user or not verify_password(login_in.password, getattr(user, "password_hash")):
-            raise AuthenticationException("Invalid email address or password.")
+            raise AuthenticationException("Invalid credentials or password.")
         if not getattr(user, "is_active"):
             raise AuthenticationException("This user account is suspended.")
 

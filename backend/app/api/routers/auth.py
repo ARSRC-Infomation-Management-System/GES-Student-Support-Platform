@@ -24,7 +24,12 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     raise PublicRegistrationDisabledException()
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="Authenticate user via Student ID or Email",
+    description="Authenticate a student using their Student ID (e.g. PC-0001) or an official/admin using their Email address.",
+)
 def login(login_in: UserLogin, db: Session = Depends(get_db)):
     user = UserService().authenticate_user(db, login_in)
     user_id = getattr(user, "id")

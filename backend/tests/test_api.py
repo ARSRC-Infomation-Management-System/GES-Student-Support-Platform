@@ -1,8 +1,8 @@
 import pytest
 from app.models.models import Complaint, User, Message
 
-def get_auth_headers(client, email, password):
-    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+def get_auth_headers(client, identifier, password):
+    response = client.post("/api/v1/auth/login", json={"identifier": identifier, "password": password})
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -39,15 +39,38 @@ def test_public_registration_disabled(client):
     assert resp.json()["success"] is False
     assert resp.json()["error"]["code"] == "PUBLIC_REGISTRATION_DISABLED"
 
+def test_mixed_auth_matrix(client):
+    # 1. Student authenticates using Student ID (WG-0001)
+    student_resp = client.post("/api/v1/auth/login", json={"identifier": "WG-0001", "password": "Password123!"})
+    assert student_resp.status_code == 200
+    assert student_resp.json()["data"]["role"] == "student"
+    assert student_resp.json()["data"]["user"]["student_id"] == "WG-0001"
+
+    # 2. Official authenticates using Email
+    official_resp = client.post("/api/v1/auth/login", json={"identifier": "official@ges.gov.gh", "password": "Password123!"})
+    assert official_resp.status_code == 200
+    assert official_resp.json()["data"]["role"] == "official"
+
+    # 3. Admin authenticates using Email
+    admin_resp = client.post("/api/v1/auth/login", json={"identifier": "admin@ges.gov.gh", "password": "Password123!"})
+    assert admin_resp.status_code == 200
+    assert admin_resp.json()["data"]["role"] == "admin"
+
+    # 4. Invalid Student ID returns HTTP 401
+    invalid_resp = client.post("/api/v1/auth/login", json={"identifier": "PC-9999", "password": "Password123!"})
+    assert invalid_resp.status_code == 401
+    assert invalid_resp.json()["error"]["code"] == "AUTHENTICATION_FAILED"
+
 def test_pre_provisioned_auth_and_password_change_flow(client, db):
     admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
     
-    # 1. Admin provisions a new student
+    # 1. Admin provisions a new student with student_id
     schools = client.get("/api/v1/schools").json()["data"]
     school = schools[0]
     
     temp_pass = "TempPass123!"
     student_email = "provisioned.student@ges.gov.gh"
+    student_id = "PROV-0001"
     
     create_resp = client.post(
         "/api/v1/admin/users",
@@ -55,6 +78,7 @@ def test_pre_provisioned_auth_and_password_change_flow(client, db):
         json={
             "email": student_email,
             "name": "Provisioned Student",
+            "student_id": student_id,
             "password": temp_pass,
             "role": "student",
             "school_id": school["id"],
@@ -63,8 +87,8 @@ def test_pre_provisioned_auth_and_password_change_flow(client, db):
     )
     assert create_resp.status_code == 201
     
-    # 2. Student logs in with temporary password
-    login_resp = client.post("/api/v1/auth/login", json={"email": student_email, "password": temp_pass})
+    # 2. Student logs in using Student ID and temporary password
+    login_resp = client.post("/api/v1/auth/login", json={"identifier": student_id, "password": temp_pass})
     assert login_resp.status_code == 200
     login_data = login_resp.json()["data"]
     assert login_data["must_change_password"] is True
@@ -80,6 +104,7 @@ def test_pre_provisioned_auth_and_password_change_flow(client, db):
     me_resp = client.get("/api/v1/auth/me", headers=student_headers)
     assert me_resp.status_code == 200
     assert me_resp.json()["data"]["email"] == student_email
+    assert me_resp.json()["data"]["student_id"] == student_id
 
     # 5. Perform password change
     new_pass = "MyNewStrongPassword123!"
@@ -98,13 +123,13 @@ def test_pre_provisioned_auth_and_password_change_flow(client, db):
     unblocked_resp = client.get("/api/v1/events", headers=student_headers)
     assert unblocked_resp.status_code == 200
 
-    # 7. Subsequent login returns must_change_password = False
-    subsequent_login = client.post("/api/v1/auth/login", json={"email": student_email, "password": new_pass})
+    # 7. Subsequent login with Student ID returns must_change_password = False
+    subsequent_login = client.post("/api/v1/auth/login", json={"identifier": student_id, "password": new_pass})
     assert subsequent_login.status_code == 200
     assert subsequent_login.json()["data"]["must_change_password"] is False
 
 def test_anonymous_complaint_submission(client, db):
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    headers = get_auth_headers(client, "WG-0001", "Password123!")
     
     # Get school/region IDs
     schools = client.get("/api/v1/schools").json()["data"]
@@ -141,7 +166,7 @@ def test_anonymous_complaint_submission(client, db):
     assert track_resp.json()["data"]["title"] == "Unfair Grading"
 
 def test_identified_complaint_submission(client, db):
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    headers = get_auth_headers(client, "WG-0001", "Password123!")
     
     schools = client.get("/api/v1/schools").json()["data"]
     target_school = schools[0]
@@ -172,7 +197,7 @@ def test_identified_complaint_submission(client, db):
     assert db_complaint.student_id == student_user.id
 
 def test_message_chat_anonymity(client, db):
-    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    student_headers = get_auth_headers(client, "WG-0001", "Password123!")
     official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123!")
     
     schools = client.get("/api/v1/schools").json()["data"]
@@ -223,7 +248,7 @@ def test_message_chat_anonymity(client, db):
 
 def test_targeted_broadcasts(client):
     official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123!")
-    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    student_headers = get_auth_headers(client, "WG-0001", "Password123!")
 
     regions = client.get("/api/v1/regions").json()["data"]
     accra_region_id = next(r["id"] for r in regions if r["name"] == "Greater Accra")
@@ -279,7 +304,7 @@ def test_expired_jwt_token(client):
     from datetime import timedelta
     from app.core.security import create_access_token
     expired_token = create_access_token(
-        subject="student@ges.gov.gh",
+        subject="142",
         role="student",
         expires_delta=timedelta(minutes=-10)
     )
@@ -290,7 +315,7 @@ def test_expired_jwt_token(client):
     assert resp.json()["error"]["code"] == "AUTHENTICATION_FAILED"
 
 def test_rbac_unauthorized_role(client):
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    headers = get_auth_headers(client, "WG-0001", "Password123!")
     resp = client.get("/api/v1/admin/users", headers=headers)
     assert resp.status_code == 403
     assert resp.json()["success"] is False
