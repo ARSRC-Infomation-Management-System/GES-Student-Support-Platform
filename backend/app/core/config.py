@@ -53,6 +53,11 @@ class Settings(BaseSettings):
         validation_alias="UPLOAD_DIR",
     )
 
+    # Cloudinary CDN
+    CLOUDINARY_CLOUD_NAME: str = Field(default="", validation_alias="CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: str = Field(default="", validation_alias="CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET: str = Field(default="", validation_alias="CLOUDINARY_API_SECRET")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

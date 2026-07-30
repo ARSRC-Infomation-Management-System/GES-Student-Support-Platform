@@ -15,6 +15,8 @@ class EventMapper:
             status=getattr(event, "status"),
             target_region_id=getattr(event, "target_region_id"),
             target_school_id=getattr(event, "target_school_id"),
+            image_url=getattr(event, "image_url", None),
+            image_public_id=getattr(event, "image_public_id", None),
             created_by=getattr(event, "created_by"),
             created_at=getattr(event, "created_at"),
             updated_at=getattr(event, "updated_at"),

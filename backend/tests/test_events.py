@@ -384,3 +384,76 @@ def test_pagination_and_search(client, event_setup_users):
     assert "limit" in payload
     assert "offset" in payload
     assert "has_next" in payload
+
+
+def test_create_event_with_valid_image_upload(client, event_setup_users, monkeypatch):
+    from unittest.mock import MagicMock
+    import cloudinary.uploader
+    from PIL import Image
+    import io
+
+    admin_headers = get_auth_headers(client, "superadmin_evt@ges.gov.gh")
+    now = datetime.now(timezone.utc)
+
+    # Generate sample valid PNG image binary using Pillow
+    img = Image.new("RGB", (100, 100), color="blue")
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_bytes = img_byte_arr.getvalue()
+
+    mock_upload = MagicMock(return_value={
+        "secure_url": "https://res.cloudinary.com/demo/image/upload/v174000/events/event_mock123.png",
+        "public_id": "events/event_mock123"
+    })
+    monkeypatch.setattr(cloudinary.uploader, "upload", mock_upload)
+
+    form_data = {
+        "title": "SRC Launch Event with Flyer",
+        "description": "Annual SRC launch event flyer test",
+        "location": "Main Auditorium",
+        "start_time": (now + timedelta(days=2)).isoformat(),
+        "end_time": (now + timedelta(days=2, hours=3)).isoformat(),
+    }
+    files = {"image": ("flyer.png", img_bytes, "image/png")}
+
+    resp = client.post("/api/v1/events", headers=admin_headers, data=form_data, files=files)
+    assert resp.status_code == 201
+    data = resp.json()["data"]
+    assert data["image_url"] == "https://res.cloudinary.com/demo/image/upload/v174000/events/event_mock123.png"
+    assert data["image_public_id"] == "events/event_mock123"
+    assert mock_upload.called
+
+
+def test_create_event_reject_non_image_upload(client, event_setup_users):
+    admin_headers = get_auth_headers(client, "superadmin_evt@ges.gov.gh")
+    now = datetime.now(timezone.utc)
+
+    form_data = {
+        "title": "Invalid Flyer File Event",
+        "description": "Should fail due to text file",
+        "start_time": (now + timedelta(days=2)).isoformat(),
+        "end_time": (now + timedelta(days=2, hours=3)).isoformat(),
+    }
+    files = {"image": ("document.pdf", b"%PDF-1.4 fake pdf content", "application/pdf")}
+
+    resp = client.post("/api/v1/events", headers=admin_headers, data=form_data, files=files)
+    assert resp.status_code == 400
+    assert "Unsupported image format" in resp.json()["detail"]
+
+
+def test_create_event_without_image(client, event_setup_users):
+    admin_headers = get_auth_headers(client, "superadmin_evt@ges.gov.gh")
+    now = datetime.now(timezone.utc)
+
+    form_data = {
+        "title": "No Image Event",
+        "description": "Event created without flyer image",
+        "start_time": (now + timedelta(days=3)).isoformat(),
+        "end_time": (now + timedelta(days=3, hours=2)).isoformat(),
+    }
+
+    resp = client.post("/api/v1/events", headers=admin_headers, data=form_data)
+    assert resp.status_code == 201
+    data = resp.json()["data"]
+    assert data["image_url"] is None
+    assert data["image_public_id"] is None

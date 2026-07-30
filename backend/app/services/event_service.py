@@ -81,6 +81,8 @@ class EventService:
             status=event_in.status or EventStatus.DRAFT,
             target_region_id=resolved_region_id,
             target_school_id=resolved_school_id,
+            image_url=event_in.image_url,
+            image_public_id=event_in.image_public_id,
             created_by=user_id,
         )
 

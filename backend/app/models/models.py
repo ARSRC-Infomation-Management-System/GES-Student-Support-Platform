@@ -276,6 +276,8 @@ class Event(Base):
     target_region_id = Column(Integer, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True)
     target_school_id = Column(Integer, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    image_url = Column(String(500), nullable=True)
+    image_public_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

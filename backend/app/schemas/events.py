@@ -12,6 +12,8 @@ class EventBase(BaseModel):
     end_time: datetime
     target_region_id: Optional[int] = None
     target_school_id: Optional[int] = None
+    image_url: Optional[str] = None
+    image_public_id: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_event_scope_and_times(self):
@@ -34,6 +36,8 @@ class EventUpdate(BaseModel):
     end_time: Optional[datetime] = None
     target_region_id: Optional[int] = None
     target_school_id: Optional[int] = None
+    image_url: Optional[str] = None
+    image_public_id: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_event_scope_and_times(self):
@@ -55,6 +59,8 @@ class EventResponse(BaseModel):
     status: EventStatus
     target_region_id: Optional[int] = None
     target_school_id: Optional[int] = None
+    image_url: Optional[str] = None
+    image_public_id: Optional[str] = None
     created_by: Optional[int] = None
     created_at: datetime
     updated_at: datetime
