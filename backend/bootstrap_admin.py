@@ -19,6 +19,7 @@ def bootstrap_admin():
     print("=================================================================\n")
 
     # Make sure tables exist
+    print("Ensuring database schema exists...")
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
 
@@ -54,11 +55,15 @@ def bootstrap_admin():
             print(f"Password Policy Violation: {ve}")
             sys.exit(1)
 
-        # Check if email already exists
+        # Check if administrator already exists
         existing_user = db.query(User).filter(User.email == email).first()
+
         if existing_user:
-            print(f"Error: User with email '{email}' already exists.")
-            sys.exit(1)
+            print(
+                f"[INFO] Administrator '{email}' already exists "
+                f"(ID: {existing_user.id}). Skipping bootstrap."
+            )
+            return
 
         # Create administrator account
         hashed_password = get_password_hash(password)
