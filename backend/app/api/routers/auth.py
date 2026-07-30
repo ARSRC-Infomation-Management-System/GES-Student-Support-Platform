@@ -112,3 +112,27 @@ def read_current_user(current_user: User = Depends(get_current_user)):
         "message": "User profile fetched successfully.",
         "data": UserOut.model_validate(current_user),
     }
+
+
+@router.post("/logout")
+def logout(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = getattr(current_user, "id")
+    try:
+        from app.models.models import AuditLog
+        audit = AuditLog(
+            user_id=user_id,
+            action="USER_LOGOUT_SUCCESS",
+            details=f"User ID {user_id} logged out successfully.",
+        )
+        db.add(audit)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return {
+        "success": True,
+        "message": "Successfully logged out.",
+    }

@@ -326,3 +326,115 @@ def test_rbac_unauthorized_role(client):
     assert resp.status_code == 403
     assert resp.json()["success"] is False
     assert resp.json()["error"]["code"] == "PERMISSION_DENIED"
+
+def test_bulk_student_csv_import_success(client):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
+
+    csv_data = (
+        "First Name,Last Name,Email,School,Region\n"
+        "Kofi,Mensah,kofi.import@ges.gov.gh,Achimota School,Greater Accra\n"
+        "Ama,Serwaa,ama.import@ges.gov.gh,Wesley Girls High School,Central\n"
+    )
+
+    files = {"file": ("students.csv", csv_data.encode("utf-8"), "text/csv")}
+    resp = client.post("/api/v1/admin/import/students", headers=admin_headers, files=files)
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["dry_run"] is False
+    assert data["imported"] == 2
+    assert data["failed"] == 0
+    assert len(data["credentials"]) == 2
+
+    cred = data["credentials"][0]
+    student_id = cred["student_id"]
+    temp_pass = cred["temp_password"]
+
+    login_resp = client.post("/api/v1/auth/login", json={"identifier": student_id, "password": temp_pass})
+    assert login_resp.status_code == 200
+    assert login_resp.json()["data"]["must_change_password"] is True
+
+def test_bulk_student_csv_import_missing_school_row_failure(client):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
+
+    csv_data = (
+        "First Name,Last Name,Email,School,Region\n"
+        "Kofi,Mensah,kofi.valid@ges.gov.gh,Achimota School,Greater Accra\n"
+        "Ama,Bad,ama.invalid@ges.gov.gh,Unknown Nonexistent School,Central\n"
+    )
+
+    files = {"file": ("students.csv", csv_data.encode("utf-8"), "text/csv")}
+    resp = client.post("/api/v1/admin/import/students", headers=admin_headers, files=files)
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert data["failed"] == 1
+    assert len(data["failed_rows"]) == 1
+    assert data["failed_rows"][0]["row"] == 3
+    assert "Unknown Nonexistent School" in data["failed_rows"][0]["reason"]
+
+def test_bulk_student_csv_import_dry_run(client):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
+
+    csv_data = (
+        "First Name,Last Name,Email,School,Region\n"
+        "DryRun,Student,dryrun@ges.gov.gh,Achimota School,Greater Accra\n"
+    )
+
+    files = {"file": ("students.csv", csv_data.encode("utf-8"), "text/csv")}
+    resp = client.post("/api/v1/admin/import/students?dry_run=true", headers=admin_headers, files=files)
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["dry_run"] is True
+    assert data["imported"] == 1
+
+    login_resp = client.post("/api/v1/auth/login", json={"identifier": "dryrun@ges.gov.gh", "password": "Password123!"})
+    assert login_resp.status_code == 401
+
+def test_bulk_student_csv_import_invalid_header(client):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
+
+    csv_data = (
+        "First Name,Last Name,School,Region\n"
+        "Kofi,Mensah,Achimota School,Greater Accra\n"
+    )
+
+    files = {"file": ("students.csv", csv_data.encode("utf-8"), "text/csv")}
+    resp = client.post("/api/v1/admin/import/students", headers=admin_headers, files=files)
+
+    assert resp.status_code == 422
+    assert "Missing required column(s): Email" in resp.json()["detail"]
+
+def test_auth_logout_endpoint(client):
+    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    resp = client.post("/api/v1/auth/logout", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    assert resp.json()["message"] == "Successfully logged out."
+
+def test_bulk_student_csv_import_upsert_mode_and_redacted_credentials(client):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
+
+    csv_data = (
+        "First Name,Last Name,Email,School,Region\n"
+        "Jane,Doe Updated,student@ges.gov.gh,Achimota School,Greater Accra\n"
+    )
+
+    files = {"file": ("students.csv", csv_data.encode("utf-8"), "text/csv")}
+    resp = client.post(
+        "/api/v1/admin/import/students?mode=upsert&include_credentials=false",
+        headers=admin_headers,
+        files=files
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["imported"] == 1
+    assert len(data["credentials"]) == 0
+
+    me_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    me_resp = client.get("/api/v1/auth/me", headers=me_headers)
+    assert me_resp.status_code == 200
+    assert me_resp.json()["data"]["name"] == "Jane Doe Updated"
