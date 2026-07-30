@@ -7,37 +7,104 @@ def get_auth_headers(client, email, password):
     token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
-def test_auth_flow(client):
-    # 1. Get schools to find IDs
-    resp = client.get("/api/v1/schools")
+def test_health_check_endpoint(client):
+    resp = client.get("/health")
     assert resp.status_code == 200
-    schools = resp.json()["data"]
-    assert len(schools) > 0
-    school_id = schools[0]["id"]
-    region_id = schools[0]["region_id"]
+    assert resp.json()["status"] == "ok"
 
-    # 2. Register
-    new_email = "newstudent@ges.gov.gh"
+    v1_resp = client.get("/api/v1/health")
+    assert v1_resp.status_code == 200
+    assert v1_resp.json()["status"] == "ok"
+
+def test_seed_environment_guard():
+    from seed import seed_db
+    from app.core.config import settings
+
+    original_env = settings.ENVIRONMENT
+    try:
+        settings.ENVIRONMENT = "production"
+        with pytest.raises(RuntimeError) as exc_info:
+            seed_db()
+        assert "Database seeding is disabled outside development" in str(exc_info.value)
+    finally:
+        settings.ENVIRONMENT = original_env
+
+def test_public_registration_disabled(client):
     resp = client.post("/api/v1/auth/register", json={
-        "email": new_email,
-        "name": "New Student",
-        "password": "Password123",
-        "region_id": region_id,
-        "school_id": school_id
+        "email": "selfreg@ges.gov.gh",
+        "name": "Self Reg",
+        "password": "Password123!"
     })
-    assert resp.status_code == 201
+    assert resp.status_code == 403
+    assert resp.json()["success"] is False
+    assert resp.json()["error"]["code"] == "PUBLIC_REGISTRATION_DISABLED"
+
+def test_pre_provisioned_auth_and_password_change_flow(client, db):
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
     
-    # 3. Login
-    headers = get_auth_headers(client, new_email, "Password123")
+    # 1. Admin provisions a new student
+    schools = client.get("/api/v1/schools").json()["data"]
+    school = schools[0]
     
-    # 4. Check profile
-    resp = client.get("/api/v1/auth/me", headers=headers)
-    assert resp.status_code == 200
-    assert resp.json()["data"]["email"] == new_email
-    assert resp.json()["data"]["role"] == "student"
+    temp_pass = "TempPass123!"
+    student_email = "provisioned.student@ges.gov.gh"
+    
+    create_resp = client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={
+            "email": student_email,
+            "name": "Provisioned Student",
+            "password": temp_pass,
+            "role": "student",
+            "school_id": school["id"],
+            "region_id": school["region_id"]
+        }
+    )
+    assert create_resp.status_code == 201
+    
+    # 2. Student logs in with temporary password
+    login_resp = client.post("/api/v1/auth/login", json={"email": student_email, "password": temp_pass})
+    assert login_resp.status_code == 200
+    login_data = login_resp.json()["data"]
+    assert login_data["must_change_password"] is True
+    student_token = login_data["access_token"]
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+
+    # 3. Attempt accessing protected endpoint before changing password (MUST FAIL with HTTP 403)
+    blocked_resp = client.get("/api/v1/events", headers=student_headers)
+    assert blocked_resp.status_code == 403
+    assert blocked_resp.json()["error"]["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+    # 4. Accessing /auth/me is allowed
+    me_resp = client.get("/api/v1/auth/me", headers=student_headers)
+    assert me_resp.status_code == 200
+    assert me_resp.json()["data"]["email"] == student_email
+
+    # 5. Perform password change
+    new_pass = "MyNewStrongPassword123!"
+    change_resp = client.patch(
+        "/api/v1/auth/change-password",
+        headers=student_headers,
+        json={
+            "current_password": temp_pass,
+            "new_password": new_pass
+        }
+    )
+    assert change_resp.status_code == 200
+    assert change_resp.json()["success"] is True
+
+    # 6. Verify protected endpoint is now accessible
+    unblocked_resp = client.get("/api/v1/events", headers=student_headers)
+    assert unblocked_resp.status_code == 200
+
+    # 7. Subsequent login returns must_change_password = False
+    subsequent_login = client.post("/api/v1/auth/login", json={"email": student_email, "password": new_pass})
+    assert subsequent_login.status_code == 200
+    assert subsequent_login.json()["data"]["must_change_password"] is False
 
 def test_anonymous_complaint_submission(client, db):
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123")
+    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
     
     # Get school/region IDs
     schools = client.get("/api/v1/schools").json()["data"]
@@ -74,7 +141,7 @@ def test_anonymous_complaint_submission(client, db):
     assert track_resp.json()["data"]["title"] == "Unfair Grading"
 
 def test_identified_complaint_submission(client, db):
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123")
+    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
     
     schools = client.get("/api/v1/schools").json()["data"]
     target_school = schools[0]
@@ -105,14 +172,12 @@ def test_identified_complaint_submission(client, db):
     assert db_complaint.student_id == student_user.id
 
 def test_message_chat_anonymity(client, db):
-    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123")
-    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123")
+    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
+    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123!")
     
-    # Get schools list
     schools = client.get("/api/v1/schools").json()["data"]
     target_school = schools[0]
     
-    # Student submits anonymous complaint
     comp_resp = client.post(
         "/api/v1/complaints",
         headers=student_headers,
@@ -127,7 +192,6 @@ def test_message_chat_anonymity(client, db):
     )
     case_id = comp_resp.json()["data"]["case_id"]
     
-    # 1. Student sends message
     msg_resp = client.post(
         f"/api/v1/messages/{case_id}",
         headers=student_headers,
@@ -135,7 +199,6 @@ def test_message_chat_anonymity(client, db):
     )
     assert msg_resp.status_code == 201
     
-    # 2. Official replies
     reply_resp = client.post(
         f"/api/v1/messages/{case_id}",
         headers=official_headers,
@@ -143,36 +206,29 @@ def test_message_chat_anonymity(client, db):
     )
     assert reply_resp.status_code == 201
 
-    # 3. Retrieve conversation (retrieved by official, who is unauthorized to view student identity)
     messages_resp = client.get(f"/api/v1/messages/{case_id}", headers=official_headers)
     assert messages_resp.status_code == 200
     messages = messages_resp.json()["data"]
     assert len(messages) == 2
     
-    # Verify Anonymity:
-    # First message (from student): sender_id must be NULL (redacted in response payload)
     assert messages[0]["sender_role"] == "student"
     assert messages[0]["sender_id"] is None
     
-    # Second message (from official): sender_id must not be NULL
     assert messages[1]["sender_role"] == "official"
     assert messages[1]["sender_id"] is not None
 
-    # Query DB directly to assert database relational integrity is preserved (non-null!)
     db_message = db.query(Message).filter(Message.content == "Please look into this quickly.").first()
     assert db_message is not None
-    assert db_message.sender_id is not None  # preserved in DB
+    assert db_message.sender_id is not None
 
 def test_targeted_broadcasts(client):
-    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123")
-    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123")
+    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123!")
+    student_headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
 
-    # Fetch regions to target
     regions = client.get("/api/v1/regions").json()["data"]
     accra_region_id = next(r["id"] for r in regions if r["name"] == "Greater Accra")
     central_region_id = next(r["id"] for r in regions if r["name"] == "Central")
     
-    # Official (in Accra region) creates broadcast targeting Accra region
     accra_broad = client.post(
         "/api/v1/broadcasts",
         headers=official_headers,
@@ -184,8 +240,7 @@ def test_targeted_broadcasts(client):
     )
     assert accra_broad.status_code == 201
 
-    # Admin creates broadcast targeting Central region (where our student is)
-    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123")
+    admin_headers = get_auth_headers(client, "admin@ges.gov.gh", "Password123!")
     central_broad = client.post(
         "/api/v1/broadcasts",
         headers=admin_headers,
@@ -197,7 +252,6 @@ def test_targeted_broadcasts(client):
     )
     assert central_broad.status_code == 201
     
-    # Post a global broadcast
     global_broad = client.post(
         "/api/v1/broadcasts",
         headers=admin_headers,
@@ -208,10 +262,7 @@ def test_targeted_broadcasts(client):
     )
     assert global_broad.status_code == 201
 
-    # Logged in student (Jane Doe, who is in Central Region) lists broadcasts
     student_broadcasts = client.get("/api/v1/broadcasts", headers=student_headers).json()["data"]
-    
-    # Assert student sees the Central broadcast and Global broadcast, but NOT the Accra broadcast!
     titles = [b["title"] for b in student_broadcasts]
     assert "Central Region Academic Quiz" in titles
     assert "National Holiday Announcement" in titles
@@ -239,15 +290,13 @@ def test_expired_jwt_token(client):
     assert resp.json()["error"]["code"] == "AUTHENTICATION_FAILED"
 
 def test_rbac_unauthorized_role(client):
-    # Student trying to access admin user listing endpoint
-    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123")
+    headers = get_auth_headers(client, "student@ges.gov.gh", "Password123!")
     resp = client.get("/api/v1/admin/users", headers=headers)
     assert resp.status_code == 403
     assert resp.json()["success"] is False
     assert resp.json()["error"]["code"] == "PERMISSION_DENIED"
 
-    # Official trying to create region (admin only)
-    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123")
+    official_headers = get_auth_headers(client, "official@ges.gov.gh", "Password123!")
     resp = client.post("/api/v1/admin/regions", headers=official_headers, json={"name": "New Region"})
     assert resp.status_code == 403
     assert resp.json()["success"] is False

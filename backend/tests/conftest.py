@@ -18,6 +18,7 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 @pytest.fixture(scope="function")
 def db():
     Base.metadata.create_all(bind=engine)
@@ -28,45 +29,50 @@ def db():
         r2 = Region(name="Central")
         session.add_all([r1, r2])
         session.commit()
-        
-        s1 = School(name="Achimota School", region_id=r1.id)
-        s2 = School(name="Wesley Girls High School", region_id=r2.id)
+
+        s1 = School(name="Achimota School", region_id=getattr(r1, "id"))
+        s2 = School(name="Wesley Girls High School", region_id=getattr(r2, "id"))
         session.add_all([s1, s2])
         session.commit()
-        
-        # Seed test users
+
+        # Seed test users with Password123! and must_change_password=False
         admin = User(
             email="admin@ges.gov.gh",
             name="System Administrator",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="admin",
-            is_active=True
+            must_change_password=False,
+            is_active=True,
         )
         official = User(
             email="official@ges.gov.gh",
             name="GES Accra Rep",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="official",
-            region_id=r1.id,
+            region_id=getattr(r1, "id"),
             school_id=None,
-            is_active=True
+            must_change_password=False,
+            is_active=True,
         )
         student = User(
             email="student@ges.gov.gh",
             name="Jane Doe",
-            password_hash=get_password_hash("Password123"),
+            student_id="WG-0001",
+            password_hash=get_password_hash("Password123!"),
             role="student",
-            region_id=r2.id,
-            school_id=s2.id,
-            is_active=True
+            region_id=getattr(r2, "id"),
+            school_id=getattr(s2, "id"),
+            must_change_password=False,
+            is_active=True,
         )
         session.add_all([admin, official, student])
         session.commit()
-        
+
         yield session
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture(scope="function")
 def client(db):
@@ -75,6 +81,7 @@ def client(db):
             yield db
         finally:
             pass
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c

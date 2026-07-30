@@ -1,6 +1,11 @@
 from fastapi import Request, FastAPI
 from fastapi.responses import JSONResponse
-from app.exceptions.auth import AuthenticationException, PermissionDeniedException
+from app.exceptions.auth import (
+    AuthenticationException,
+    PermissionDeniedException,
+    PasswordChangeRequiredException,
+    PublicRegistrationDisabledException,
+)
 from app.exceptions.complaint import ComplaintNotFoundException, ScopeMismatchException
 from app.exceptions.storage import StorageException
 from app.exceptions.event import (
@@ -31,6 +36,32 @@ def register_exception_handlers(app: FastAPI):
                 "success": False,
                 "error": {
                     "code": "PERMISSION_DENIED",
+                    "message": str(exc)
+                }
+            }
+        )
+
+    @app.exception_handler(PasswordChangeRequiredException)
+    async def password_change_required_exception_handler(request: Request, exc: PasswordChangeRequiredException):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": {
+                    "code": "PASSWORD_CHANGE_REQUIRED",
+                    "message": str(exc)
+                }
+            }
+        )
+
+    @app.exception_handler(PublicRegistrationDisabledException)
+    async def public_registration_disabled_exception_handler(request: Request, exc: PublicRegistrationDisabledException):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": {
+                    "code": "PUBLIC_REGISTRATION_DISABLED",
                     "message": str(exc)
                 }
             }
@@ -113,4 +144,3 @@ def register_exception_handlers(app: FastAPI):
                 }
             }
         )
-

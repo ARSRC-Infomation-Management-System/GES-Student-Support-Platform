@@ -81,6 +81,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="student")  # 'admin', 'official', 'student'
+    student_id = Column(String(50), unique=True, nullable=True, index=True)
+    must_change_password = Column(Boolean, nullable=False, default=True, server_default="true")
     is_active = Column(Boolean, default=True)
     
     # Regional tracking for student routing & officials scope

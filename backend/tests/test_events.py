@@ -4,7 +4,7 @@ from app.models.models import User, Region, School, Event, EventStatus, Notifica
 from app.core.security import get_password_hash
 
 
-def get_auth_headers(client, email, password="Password123"):
+def get_auth_headers(client, email, password="Password123!"):
     response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
@@ -48,8 +48,9 @@ def event_setup_users(db):
         super_admin = User(
             email="superadmin_evt@ges.gov.gh",
             name="Super Admin",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="admin",
+            must_change_password=False,
             is_active=True,
         )
         db.add(super_admin)
@@ -60,10 +61,11 @@ def event_setup_users(db):
         regional_officer = User(
             email="regional_evt@ges.gov.gh",
             name="Accra Officer",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="official",
             region_id=accra.id,
             school_id=None,
+            must_change_password=False,
             is_active=True,
         )
         db.add(regional_officer)
@@ -74,10 +76,11 @@ def event_setup_users(db):
         school_admin = User(
             email="schooladmin_evt@ges.gov.gh",
             name="Achimota Admin",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="official",
             region_id=accra.id,
             school_id=achimota.id,
+            must_change_password=False,
             is_active=True,
         )
         db.add(school_admin)
@@ -88,10 +91,11 @@ def event_setup_users(db):
         student_a = User(
             email="student_a_evt@ges.gov.gh",
             name="Student Ashanti",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="student",
             region_id=ashanti.id,
             school_id=kumasi.id,
+            must_change_password=False,
             is_active=True,
         )
         db.add(student_a)
@@ -102,10 +106,11 @@ def event_setup_users(db):
         student_b = User(
             email="student_b_evt@ges.gov.gh",
             name="Student Accra",
-            password_hash=get_password_hash("Password123"),
+            password_hash=get_password_hash("Password123!"),
             role="student",
             region_id=accra.id,
             school_id=achimota.id,
+            must_change_password=False,
             is_active=True,
         )
         db.add(student_b)

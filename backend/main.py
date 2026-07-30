@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.db.database import engine, Base, SessionLocal
 from app.models.models import Region, School, User, Resource
 from app.core.security import get_password_hash
-from app.api.routers import auth, admin, complaints, messages, broadcasts, resources, events
+from app.api.routers import auth, admin, complaints, messages, broadcasts, resources, events, health
 from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import MockRateLimitMiddleware
 from app.api.middleware.exception_handlers import register_exception_handlers
@@ -14,19 +14,14 @@ from app.api.middleware.exception_handlers import register_exception_handlers
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    description="Backend API services for Ashanti Regional SRC Information Management System",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
-# Set CORS middleware
+# Set CORS middleware using dynamic environment origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://arsrc.vercel.app"  # Production frontend
-    ],  # Explicit origins are required when allow_credentials=True
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +35,7 @@ app.add_middleware(MockRateLimitMiddleware)
 register_exception_handlers(app)
 
 # Register Routers
+app.include_router(health.router)
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
 app.include_router(complaints.router, prefix=settings.API_V1_STR)
@@ -52,7 +48,8 @@ app.include_router(events.router, prefix=settings.API_V1_STR)
 @app.get("/")
 def read_root():
     return {
-        "status": "online",
-        "message": "Welcome to Ghana Education Service (GES) Student Support & Communication Platform API",
-        "version": "1.0.0"
+        "service": f"{settings.PROJECT_NAME} API",
+        "status": "running",
+        "environment": settings.ENVIRONMENT,
+        "version": "1.0.0",
     }
