@@ -1,15 +1,19 @@
 services:
   - type: web
-    name: ges-student-support-api
+    name: arsrc-info-management-api
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && alembic upgrade head && python seed.py
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PROJECT_NAME
-        value: GES Student Support & Communication Platform
+        value: ASHANTI REGIONAL SRC INFORMATION MANAGEMENT SYSTEM
       - key: API_V1_STR
         value: /api/v1
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://arsrc.vercel.app
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
@@ -22,10 +26,10 @@ services:
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
-          name: ges-postgres-db
+          name: arsrc-postgres-db
           property: connectionString
 
 databases:
-  - name: ges-postgres-db
-    databaseName: ges_db
-    user: ges_user
+  - name: arsrc-postgres-db
+    databaseName: arsrc_db
+    user: arsrc_user
