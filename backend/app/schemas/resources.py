@@ -6,7 +6,19 @@ class ResourceCreate(BaseModel):
     title: str = Field(..., max_length=200)
     description: Optional[str] = None
     url: Optional[str] = None
+    file_url: Optional[str] = None
+    file_public_id: Optional[str] = None
+    file_type: Optional[str] = None
     category: str
+
+class ResourceUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    url: Optional[str] = None
+    file_url: Optional[str] = None
+    file_public_id: Optional[str] = None
+    file_type: Optional[str] = None
+    category: Optional[str] = None
 
 class ResourceOut(ResourceCreate):
     id: int

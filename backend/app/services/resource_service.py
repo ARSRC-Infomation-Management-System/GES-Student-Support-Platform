@@ -1,10 +1,11 @@
-from typing import List
+from typing import List, Optional
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Session
 from app.models.models import User, Resource, Notification, AuditLog
-from app.schemas.resources import ResourceCreate
+from app.schemas.resources import ResourceCreate, ResourceUpdate
 from app.repositories.resource_repository import ResourceRepository
 from app.exceptions.auth import PermissionDeniedException
+
 
 class ResourceService:
     def __init__(self):
@@ -18,7 +19,10 @@ class ResourceService:
             title=resource_in.title,
             description=resource_in.description,
             url=resource_in.url,
-            category=resource_in.category
+            file_url=resource_in.file_url,
+            file_public_id=resource_in.file_public_id,
+            file_type=resource_in.file_type,
+            category=resource_in.category,
         )
         try:
             resource = self.resource_repo.create(db, db_resource)
@@ -29,7 +33,25 @@ class ResourceService:
             db.rollback()
             raise e
 
-    def delete_resource(self, db: Session, resource_id: int, current_user: User) -> None:
+    def update_resource(self, db: Session, resource_id: int, resource_in: ResourceUpdate, current_user: User) -> Resource:
+        if current_user.role not in ["official", "admin"]:
+            raise PermissionDeniedException("Only representatives or admins can manage resources.")
+
+        resource = self.resource_repo.get(db, resource_id)
+        if not resource:
+            raise PermissionDeniedException("Resource not found.")
+
+        update_data = resource_in.model_dump(exclude_unset=True)
+        try:
+            updated_resource = self.resource_repo.update(db, resource, update_data)
+            db.commit()
+            db.refresh(updated_resource)
+            return updated_resource
+        except Exception as e:
+            db.rollback()
+            raise e
+
+    def delete_resource(self, db: Session, resource_id: int, current_user: User) -> Optional[Resource]:
         if current_user.role != "admin":
             raise PermissionDeniedException("Only admins can manage resources.")
             
@@ -47,6 +69,7 @@ class ResourceService:
             )
             db.add(audit)
             db.commit()
+            return resource
         except Exception as e:
             db.rollback()
             raise e

@@ -1,4 +1,4 @@
-from typing import Generator, List
+from typing import Generator, List, Optional
 from fastapi import Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -61,3 +61,27 @@ class RoleChecker:
         if user_role not in self.allowed_roles:
             raise PermissionDeniedException("The user does not have enough privileges")
         return current_user
+
+
+optional_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_optional_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    token_auth: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer_scheme),
+) -> Optional[User]:
+    if not token_auth or not token_auth.credentials:
+        return None
+    try:
+        token = token_auth.credentials
+        payload = decode_token(token)
+        token_data_sub = payload.get("sub")
+        if not token_data_sub or payload.get("type") == "refresh":
+            return None
+        user = db.query(User).filter(User.id == int(token_data_sub)).first()
+        if not user or not getattr(user, "is_active"):
+            return None
+        return user
+    except Exception:
+        return None

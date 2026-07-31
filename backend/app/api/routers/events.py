@@ -7,7 +7,7 @@ from app.models.models import User, EventStatus, Event
 from app.schemas.events import EventCreate, EventUpdate
 from app.services.event_service import EventService
 from app.services.cloudinary_service import CloudinaryService
-from app.api.deps import get_current_user, RoleChecker
+from app.api.deps import get_current_user, get_optional_current_user, RoleChecker
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -21,7 +21,7 @@ def list_events(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     res = EventService().list_events(
         db=db,
@@ -44,11 +44,11 @@ def list_upcoming_events(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     res = EventService().list_upcoming_events(
         db=db,
-        current_user=current_user,
+        current_user=current_user or User(),
         search=search,
         limit=limit,
         offset=offset,
@@ -66,11 +66,11 @@ def list_history_events(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     res = EventService().list_history_events(
         db=db,
-        current_user=current_user,
+        current_user=current_user or User(),
         search=search,
         limit=limit,
         offset=offset,
@@ -86,7 +86,7 @@ def list_history_events(
 def get_event_details(
     id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     res = EventService().get_event(db, id, current_user)
     return {

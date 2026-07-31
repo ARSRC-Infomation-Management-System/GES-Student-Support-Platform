@@ -235,32 +235,32 @@ class EventService:
 
         return EventMapper.to_response(event)
 
-    def get_event(self, db: Session, event_id: int, current_user: User) -> EventResponse:
+    def get_event(self, db: Session, event_id: int, current_user: Optional[User] = None) -> EventResponse:
         event = self.event_repo.get_by_id(db, event_id)
         if not event:
             raise EventNotFoundException(f"Event with ID {event_id} not found.")
 
-        user_role = getattr(current_user, "role")
+        user_role = getattr(current_user, "role") if current_user else "public"
         evt_status = getattr(event, "status")
-        if user_role == "student" and evt_status != EventStatus.PUBLISHED:
-            raise PermissionDeniedException("Students cannot view unpublished draft or cancelled events.")
+        if user_role in ["student", "public"] and evt_status != EventStatus.PUBLISHED:
+            raise PermissionDeniedException("Public users and students cannot view unpublished draft or cancelled events.")
 
         return EventMapper.to_response(event)
 
     def list_events(
         self,
         db: Session,
-        current_user: User,
+        current_user: Optional[User] = None,
         status: Optional[EventStatus] = None,
         search: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ) -> EventListResponse:
-        user_role = getattr(current_user, "role")
-        user_reg_id = getattr(current_user, "region_id")
-        user_sch_id = getattr(current_user, "school_id")
+        user_role = getattr(current_user, "role") if current_user else "public"
+        user_reg_id = getattr(current_user, "region_id") if current_user else None
+        user_sch_id = getattr(current_user, "school_id") if current_user else None
 
-        if user_role == "student":
+        if user_role in ["student", "public"]:
             items, total = self.event_repo.list_upcoming(
                 db,
                 region_id=user_reg_id,

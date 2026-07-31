@@ -223,6 +223,9 @@ class Resource(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     url = Column(String(255), nullable=True)  # Link to the resource
+    file_url = Column(String(500), nullable=True)
+    file_public_id = Column(String(255), nullable=True)
+    file_type = Column(String(50), nullable=True)
     category = Column(String(50), nullable=False)  # 'academic', 'health', 'safety', 'guideline'
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

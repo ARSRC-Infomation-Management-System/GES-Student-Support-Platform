@@ -96,7 +96,7 @@ def test_pre_provisioned_auth_and_password_change_flow(client, db):
     student_headers = {"Authorization": f"Bearer {student_token}"}
 
     # 3. Attempt accessing protected endpoint before changing password (MUST FAIL with HTTP 403)
-    blocked_resp = client.get("/api/v1/events", headers=student_headers)
+    blocked_resp = client.get("/api/v1/complaints", headers=student_headers)
     assert blocked_resp.status_code == 403
     assert blocked_resp.json()["error"]["code"] == "PASSWORD_CHANGE_REQUIRED"
 
